@@ -174,7 +174,7 @@ export async function executeCosmofeedImport(csvContent: string, options: Import
     skipEmptyLines: "greedy",
   });
   const rows = parsed.data as Record<string, string>[];
-  const db = await fetchLiveSheetData();
+  const db = await fetchLiveSheetData(true);
 
   const existingPaymentMap = new Map<string, RevenueItem>();
   db.revenues.forEach((r) => {
@@ -256,7 +256,7 @@ export async function executeCosmofeedImport(csvContent: string, options: Import
   if (newRowsToPush.length > 0) {
     try {
       const res = await pushBatchToSheet("Revenues", newRowsToPush);
-      if (res?.success) sheetPushed = true;
+      if (res?.success || res?.insertedCount !== undefined) sheetPushed = true;
     } catch (e) {
       console.warn("Google Sheet bulk push error:", e);
     }

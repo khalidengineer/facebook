@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import Papa from "papaparse";
+import { normalizeDateToISO } from "@/lib/date-utils";
 
 const DEFAULT_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbx8v0N44nQSkFK4LyOOnyqeedUMw86R92l_bb59IcVXaIFHKe0ybm4ShHValK0O32lq/exec";
@@ -370,28 +372,293 @@ export function GitHubPagesClientApi() {
             });
           }
 
-          // 1b. Import API Fallback
-          if (pathOnly.startsWith("/api/import")) {
-            return new Response(
-              JSON.stringify({
-                success: true,
-                message: "Processed via Client Engine",
-                insertedCount: 0,
-                updatedCount: 0,
-                preview: {
-                  totalRows: 0,
-                  newRows: 0,
-                  matchedRows: 0,
-                  invalidRows: 0,
-                  totalGrossAmount: 0,
-                  totalNetAmount: 0,
-                  detectedProducts: [],
-                  previewRows: [],
-                  dateRange: { start: null, end: null },
-                },
-              }),
-              { status: 200, headers: { "Content-Type": "application/json" } }
-            );
+          // 1b. Import API Preview
+          if (pathOnly === "/api/import/preview" && method === "POST") {
+            try {
+              const body = init?.body ? JSON.parse(init.body as string) : {};
+              let csvContent = body.csvContent || "";
+              if (!csvContent && body.useSampleFile) {
+                const isGh = typeof window !== "undefined" && window.location.pathname.startsWith("/facebook");
+                const sampleRes = await originalFetch(isGh ? "/facebook/data.csv" : "/data.csv");
+                if (sampleRes.ok) csvContent = await sampleRes.text();
+              }
+              const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: "greedy" });
+              const rows = (parsed.data || []) as Record<string, string>[];
+              const liveData = await getLiveSheetData(storedConfig.webhookUrl, true);
+              const existingIds = new Set<string>();
+              (liveData?.revenues || []).forEach((r: any) => {
+                if (r.payment_id) existingIds.add(String(r.payment_id).trim());
+              });
+
+              const previewRows: any[] = [];
+              const productMap = new Map<string, number>();
+              const validDates: string[] = [];
+              let totalGross = 0;
+              let totalNet = 0;
+              let newRows = 0;
+              let matchedRows = 0;
+              let invalidRows = 0;
+
+              for (let idx = 0; idx < rows.length; idx++) {
+                const row = rows[idx];
+                const paymentId = (row["Payment ID"] || row["payment_id"] || row["ID"] || "").trim();
+                const rawDate = row["Date"] || row["date"] || "";
+                const isoDate = normalizeDateToISO(rawDate);
+                const productTitle = (row["Product Title"] || row["Product Name"] || row["Product"] || "Digital Notes").trim();
+                const status = (row["Status"] || row["status"] || "Received").trim();
+                const paidByCustomer = parseFloat(row["Paid By Customer"] || row["Amount"] || row["amount"] || "0") || 0;
+                const earnedAmount = parseFloat(row["Earned Amount"] || row["Net Amount"] || row["net_amount"] || "0") || 0;
+                const email = (row["Customer Email"] || row["Email"] || "").trim();
+                const isReceived = !status || status.toLowerCase() === "received";
+
+                if (productTitle && productTitle !== "--") {
+                  if (!productMap.has(productTitle) || paidByCustomer > (productMap.get(productTitle) || 0)) {
+                    productMap.set(productTitle, paidByCustomer);
+                  }
+                }
+
+                let action: "insert" | "update" | "skip" = "insert";
+                let reason = "New transaction (Will Add to Sheet)";
+
+                if (!isoDate || paidByCustomer <= 0) {
+                  action = "skip";
+                  reason = !isoDate ? "Invalid date" : "Amount is zero";
+                  invalidRows++;
+                } else if (!isReceived) {
+                  action = "skip";
+                  reason = `Status is ${status}`;
+                  invalidRows++;
+                } else if (paymentId && existingIds.has(paymentId)) {
+                  action = "update";
+                  reason = "Matches existing Payment ID";
+                  matchedRows++;
+                  totalGross += paidByCustomer;
+                  totalNet += earnedAmount > 0 ? earnedAmount : paidByCustomer;
+                  if (isoDate) validDates.push(isoDate);
+                } else {
+                  action = "insert";
+                  newRows++;
+                  totalGross += paidByCustomer;
+                  totalNet += earnedAmount > 0 ? earnedAmount : paidByCustomer;
+                  if (isoDate) validDates.push(isoDate);
+                }
+
+                previewRows.push({
+                  date: isoDate,
+                  productName: productTitle,
+                  amount: paidByCustomer,
+                  netAmount: earnedAmount > 0 ? earnedAmount : paidByCustomer,
+                  paymentId: paymentId || `ROW-${idx + 1}`,
+                  customerEmail: email,
+                  status,
+                  action,
+                  reason,
+                });
+              }
+
+              validDates.sort();
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  preview: {
+                    detectedType: "cosmofeed",
+                    totalRows: rows.length,
+                    newRows,
+                    matchedRows,
+                    invalidRows,
+                    totalGrossAmount: Math.round(totalGross * 100) / 100,
+                    totalNetAmount: Math.round(totalNet * 100) / 100,
+                    dateRange: { start: validDates[0] || null, end: validDates[validDates.length - 1] || null },
+                    detectedProducts: Array.from(productMap.entries()).map(([name, price]) => ({ name, price })),
+                    previewRows: previewRows.slice(0, 50),
+                    allRows: previewRows,
+                  },
+                }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+              );
+            } catch (err: any) {
+              return new Response(JSON.stringify({ success: false, error: err.message }), {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          // 1c. Import API Execute (Real Google Sheet Sync for Client/GH Pages)
+          if (pathOnly === "/api/import/execute" && method === "POST") {
+            try {
+              const body = init?.body ? JSON.parse(init.body as string) : {};
+              let csvContent = body.csvContent || "";
+              if (!csvContent && body.useSampleFile) {
+                const isGh = typeof window !== "undefined" && window.location.pathname.startsWith("/facebook");
+                const sampleRes = await originalFetch(isGh ? "/facebook/data.csv" : "/data.csv");
+                if (sampleRes.ok) csvContent = await sampleRes.text();
+              }
+
+              if (!csvContent || !csvContent.trim()) {
+                return new Response(JSON.stringify({ success: false, error: "No CSV content to import" }), {
+                  status: 400,
+                  headers: { "Content-Type": "application/json" },
+                });
+              }
+
+              const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: "greedy" });
+              const rows = (parsed.data || []) as Record<string, string>[];
+
+              // Read live sheet data to detect existing payment IDs
+              const liveData = await getLiveSheetData(storedConfig.webhookUrl, true);
+              const existingIds = new Set<string>();
+              (liveData?.revenues || []).forEach((r: any) => {
+                if (r.payment_id) existingIds.add(String(r.payment_id).trim());
+              });
+
+              const newRowsToPush: any[] = [];
+              const productMap = new Map<string, number>();
+              let totalGross = 0;
+              let totalNet = 0;
+              let updatedCount = 0;
+
+              for (const row of rows) {
+                const paymentId = (row["Payment ID"] || row["payment_id"] || row["ID"] || "").trim();
+                const rawDate = row["Date"] || row["date"] || "";
+                const isoDate = normalizeDateToISO(rawDate);
+                const productTitle = (row["Product Title"] || row["Product Name"] || row["Product"] || "Digital Notes").trim();
+                const status = (row["Status"] || row["status"] || "Received").trim();
+                const paidByCustomer = parseFloat(row["Paid By Customer"] || row["Amount"] || row["amount"] || "0") || 0;
+                const earnedAmount = parseFloat(row["Earned Amount"] || row["Net Amount"] || row["net_amount"] || "0") || 0;
+                const email = (row["Customer Email"] || row["Email"] || "").trim();
+                const isReceived = !status || status.toLowerCase() === "received";
+
+                if (!isoDate || paidByCustomer <= 0) continue;
+                if (!isReceived) continue;
+
+                if (productTitle && productTitle !== "--") {
+                  if (!productMap.has(productTitle) || paidByCustomer > (productMap.get(productTitle) || 0)) {
+                    productMap.set(productTitle, paidByCustomer);
+                  }
+                }
+
+                const item = {
+                  id: paymentId || `PAY-${Date.now()}`,
+                  date: isoDate,
+                  payment_id: paymentId || `PAY-${Date.now()}`,
+                  product_name: productTitle,
+                  amount: paidByCustomer,
+                  net_amount: earnedAmount > 0 ? earnedAmount : paidByCustomer,
+                  product_cost: 0,
+                  customer_email: email,
+                  status: status || "Received",
+                };
+
+                if (paymentId && existingIds.has(paymentId)) {
+                  updatedCount++;
+                } else {
+                  newRowsToPush.push(item);
+                  if (paymentId) existingIds.add(paymentId);
+                }
+
+                totalGross += paidByCustomer;
+                totalNet += earnedAmount > 0 ? earnedAmount : paidByCustomer;
+              }
+
+              // Push new rows to Google Sheet Webhook
+              if (storedConfig.webhookUrl && newRowsToPush.length > 0) {
+                const payload = JSON.stringify({
+                  action: "bulk_insert",
+                  sheet: "Revenues",
+                  rows: newRowsToPush,
+                });
+                try {
+                  await originalFetch(storedConfig.webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: payload,
+                    redirect: "follow",
+                  });
+                } catch {
+                  try {
+                    await originalFetch(storedConfig.webhookUrl, {
+                      method: "POST",
+                      mode: "no-cors",
+                      headers: { "Content-Type": "text/plain;charset=utf-8" },
+                      body: payload,
+                    });
+                  } catch (e) {
+                    console.warn("Webhook direct push fallback error:", e);
+                  }
+                }
+              }
+
+              // Push new products
+              const existingProds = new Set((liveData?.products || []).map((p: any) => p.name?.trim().toLowerCase()));
+              const prodsToInsert: any[] = [];
+              for (const [name, price] of productMap.entries()) {
+                if (!existingProds.has(name.toLowerCase())) {
+                  prodsToInsert.push({
+                    name,
+                    category: "Digital Notes",
+                    selling_price: price,
+                    product_cost: 0,
+                  });
+                  existingProds.add(name.toLowerCase());
+                }
+              }
+              if (storedConfig.webhookUrl && prodsToInsert.length > 0) {
+                const prodPayload = JSON.stringify({
+                  action: "bulk_insert",
+                  sheet: "Products",
+                  rows: prodsToInsert,
+                });
+                try {
+                  await originalFetch(storedConfig.webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: prodPayload,
+                    redirect: "follow",
+                  });
+                } catch {
+                  try {
+                    await originalFetch(storedConfig.webhookUrl, {
+                      method: "POST",
+                      mode: "no-cors",
+                      headers: { "Content-Type": "text/plain;charset=utf-8" },
+                      body: prodPayload,
+                    });
+                  } catch {}
+                }
+              }
+
+              // Cache update
+              const localRevs = JSON.parse(localStorage.getItem("gh_local_revs") || "[]");
+              const localIds = new Set(localRevs.map((lr: any) => lr.payment_id));
+              for (const item of newRowsToPush) {
+                if (!localIds.has(item.payment_id)) {
+                  localRevs.unshift(item);
+                  localIds.add(item.payment_id);
+                }
+              }
+              localStorage.setItem("gh_local_revs", JSON.stringify(localRevs));
+              sheetCache = null;
+
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  insertedCount: newRowsToPush.length,
+                  updatedCount,
+                  totalGross: Math.round(totalGross * 100) / 100,
+                  totalNet: Math.round(totalNet * 100) / 100,
+                  detectedProductsCount: productMap.size,
+                  newProductsCreated: prodsToInsert.length,
+                  sheetPushed: true,
+                }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+              );
+            } catch (err: any) {
+              return new Response(JSON.stringify({ success: false, error: err.message }), {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
           }
 
           // 2. Test webhook
@@ -413,8 +680,39 @@ export function GitHubPagesClientApi() {
             }
           }
 
-          // 3. Sync
-          if (pathOnly === "/api/sheets/sync" || pathOnly === "/api/sheets/push-all") {
+          // 3. Sync & Push-All
+          if (pathOnly === "/api/sheets/push-all") {
+            try {
+              const isGh = typeof window !== "undefined" && window.location.pathname.startsWith("/facebook");
+              const sampleRes = await originalFetch(isGh ? "/facebook/data.csv" : "/data.csv");
+              let insertedCount = 0;
+              if (sampleRes.ok) {
+                const csvText = await sampleRes.text();
+                const impRes = await window.fetch("/api/import/execute", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ csvContent: csvText }),
+                });
+                const impData = await impRes.json();
+                insertedCount = impData.insertedCount || 0;
+              }
+              sheetCache = null;
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  message: `Initial data pushed to Google Sheet! Added ${insertedCount} sales records.`,
+                }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+              );
+            } catch (e: any) {
+              return new Response(JSON.stringify({ success: false, error: e.message }), {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          if (pathOnly === "/api/sheets/sync") {
             const data = await getLiveSheetData(storedConfig.webhookUrl, true);
             return new Response(
               JSON.stringify({
