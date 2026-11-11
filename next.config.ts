@@ -1,12 +1,18 @@
 import type { NextConfig } from "next";
 
+const isExport = process.env.GITHUB_ACTIONS === "true" || process.env.NEXT_EXPORT === "true";
+
 const nextConfig: NextConfig = {
-  output: "export",
-  basePath: process.env.NODE_ENV === "production" ? "/facebook" : "",
-  images: {
-    unoptimized: true,
-  },
-  trailingSlash: true,
+  ...(isExport
+    ? {
+        output: "export",
+        basePath: "/facebook",
+        trailingSlash: true,
+        images: {
+          unoptimized: true,
+        },
+      }
+    : {}),
   transpilePackages: ["lucide-react", "date-fns"],
   reactStrictMode: false,
   experimental: {

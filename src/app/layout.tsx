@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { DateFilterProvider } from "@/components/providers/DateFilterProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
+import { GitHubPagesClientApi } from "@/components/providers/GitHubPagesClientApi";
 import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default function RootLayout({
         <ThemeProvider>
           <DateFilterProvider>
             <ToastProvider>
+              <GitHubPagesClientApi />
               <AppShell>{children}</AppShell>
             </ToastProvider>
           </DateFilterProvider>
