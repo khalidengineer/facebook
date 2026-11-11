@@ -6,6 +6,7 @@ const DEFAULT_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbx8v0N44nQSkFK4LyOOnyqeedUMw86R92l_bb59IcVXaIFHKe0ybm4ShHValK0O32lq/exec";
 const DEFAULT_SHEET_ID = "1LfzTmzaUpybViSZ2g-lKgr7v4NbMoNogIOz_IYtReVA";
 const DEFAULT_SHEET_URL = `https://docs.google.com/spreadsheets/d/${DEFAULT_SHEET_ID}/edit?usp=sharing`;
+const MIN_DATA_DATE = "2026-11-10";
 
 let sheetCache: {
   revenues: any[];
@@ -16,54 +17,60 @@ let sheetCache: {
 } | null = null;
 
 function parseAppsScriptData(json: any) {
-  const revenues = (json.revenues || []).map((r: any, idx: number) => {
-    const grossAmt = parseFloat(r["Paid By Customer"] || r.amount || 0) || 0;
-    const rawNet = parseFloat(r["Earned Amount"] || r.net_amount || 0);
-    const statusStr = String(r["Status"] || r.status || "Received");
-    const isCancelled = statusStr.toLowerCase().includes("cancelled");
-    const netAmt = isCancelled ? 0 : !isNaN(rawNet) && rawNet > 0 ? rawNet : grossAmt;
-    const rawDate = r["Date"] || r.date || "";
-    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
-    return {
-      id: String(r["Payment ID"] || r.payment_id || `REV-${idx + 1}`),
-      date: cleanDate,
-      payment_id: String(r["Payment ID"] || r.payment_id || ""),
-      product_name: String(r["Product Title"] || r.product_title || r.product_name || ""),
-      amount: grossAmt,
-      net_amount: netAmt,
-      product_cost: parseFloat(r["Product Cost"] || r.product_cost || 0) || 0,
-      customer_email: String(r["Customer Email"] || r.customer_email || ""),
-      status: statusStr,
-    };
-  });
+  const revenues = (json.revenues || [])
+    .map((r: any, idx: number) => {
+      const grossAmt = parseFloat(r["Paid By Customer"] || r.amount || 0) || 0;
+      const rawNet = parseFloat(r["Earned Amount"] || r.net_amount || 0);
+      const statusStr = String(r["Status"] || r.status || "Received");
+      const isCancelled = statusStr.toLowerCase().includes("cancelled");
+      const netAmt = isCancelled ? 0 : !isNaN(rawNet) && rawNet > 0 ? rawNet : grossAmt;
+      const rawDate = r["Date"] || r.date || "";
+      const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+      return {
+        id: String(r["Payment ID"] || r.payment_id || `REV-${idx + 1}`),
+        date: cleanDate,
+        payment_id: String(r["Payment ID"] || r.payment_id || ""),
+        product_name: String(r["Product Title"] || r.product_name || ""),
+        amount: grossAmt,
+        net_amount: netAmt,
+        product_cost: parseFloat(r["Product Cost"] || r.product_cost || 0) || 0,
+        customer_email: String(r["Customer Email"] || r.customer_email || ""),
+        status: statusStr,
+      };
+    })
+    .filter((r: any) => r.date >= MIN_DATA_DATE);
 
-  const facebookAds = (json.facebookAds || []).map((a: any, idx: number) => {
-    const rawDate = a["Date"] || a.date || "";
-    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
-    return {
-      id: String(a.id || `AD-${idx + 1}`),
-      date: cleanDate,
-      campaign_name: String(a["Campaign Name"] || a.campaign_name || ""),
-      product_name: String(a["Product"] || a.product || a.product_name || ""),
-      campaign_type: String(a["Campaign Type"] || a.campaign_type || "Sales"),
-      amount: parseFloat(a["Amount Spent"] || a.amount_spent || a.amount || 0) || 0,
-      currency: "INR",
-      notes: String(a["Notes"] || a.notes || ""),
-    };
-  });
+  const facebookAds = (json.facebookAds || [])
+    .map((a: any, idx: number) => {
+      const rawDate = a["Date"] || a.date || "";
+      const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+      return {
+        id: String(a.id || `AD-${idx + 1}`),
+        date: cleanDate,
+        campaign_name: String(a["Campaign Name"] || a.campaign_name || ""),
+        product_name: String(a["Product"] || a.product_name || ""),
+        campaign_type: String(a["Campaign Type"] || a.campaign_type || "Sales"),
+        amount: parseFloat(a["Amount Spent"] || a.amount_spent || a.amount || 0) || 0,
+        currency: "INR",
+        notes: String(a["Notes"] || a.notes || ""),
+      };
+    })
+    .filter((a: any) => a.date >= MIN_DATA_DATE);
 
-  const otherExpenses = (json.otherExpenses || []).map((e: any, idx: number) => {
-    const rawDate = e["Date"] || e.date || "";
-    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
-    return {
-      id: String(e.id || `EXP-${idx + 1}`),
-      date: cleanDate,
-      category: String(e["Category"] || e.category || "General"),
-      description: String(e["Description"] || e.description || ""),
-      amount: parseFloat(e["Amount"] || e.amount || 0) || 0,
-      notes: String(e["Notes"] || e.notes || ""),
-    };
-  });
+  const otherExpenses = (json.otherExpenses || [])
+    .map((e: any, idx: number) => {
+      const rawDate = e["Date"] || e.date || "";
+      const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+      return {
+        id: String(e.id || `EXP-${idx + 1}`),
+        date: cleanDate,
+        category: String(e["Category"] || e.category || "General"),
+        description: String(e["Description"] || e.description || ""),
+        amount: parseFloat(e["Amount"] || e.amount || 0) || 0,
+        notes: String(e["Notes"] || e.notes || ""),
+      };
+    })
+    .filter((e: any) => e.date >= MIN_DATA_DATE);
 
   const products = (json.products || []).map((p: any, idx: number) => ({
     id: String(p.id || `PROD-${idx + 1}`),
@@ -89,9 +96,15 @@ async function getLiveSheetData(webhookUrl: string, force = false) {
       const json = await res.json();
       if (json.success) {
         const parsed = parseAppsScriptData(json);
-        const localAds = JSON.parse(localStorage.getItem("gh_local_ads") || "[]");
-        const localExpenses = JSON.parse(localStorage.getItem("gh_local_expenses") || "[]");
-        const localRevs = JSON.parse(localStorage.getItem("gh_local_revs") || "[]");
+        const localAds = (JSON.parse(localStorage.getItem("gh_local_ads") || "[]")).filter(
+          (a: any) => a.date >= MIN_DATA_DATE
+        );
+        const localExpenses = (JSON.parse(localStorage.getItem("gh_local_expenses") || "[]")).filter(
+          (e: any) => e.date >= MIN_DATA_DATE
+        );
+        const localRevs = (JSON.parse(localStorage.getItem("gh_local_revs") || "[]")).filter(
+          (r: any) => r.date >= MIN_DATA_DATE
+        );
 
         sheetCache = {
           revenues: [...parsed.revenues, ...localRevs],
@@ -118,18 +131,29 @@ async function getLiveSheetData(webhookUrl: string, force = false) {
   );
 }
 
-function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-31") {
+function computeDashboard(db: any, startDate = MIN_DATA_DATE, endDate = "2099-12-31") {
+  // Enforce baseline minimum date 2026-11-10
+  const effectiveStart = !startDate || startDate < MIN_DATA_DATE ? MIN_DATA_DATE : startDate;
+  const effectiveEnd = !endDate ? "2099-12-31" : endDate;
+
+  // 1. Facebook Ads
   const filteredAds = (db.facebookAds || []).filter(
-    (a: any) => (!startDate || a.date >= startDate) && (!endDate || a.date <= endDate)
+    (a: any) => a.date >= effectiveStart && a.date <= effectiveEnd
   );
   const totalAdSpend = filteredAds.reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+  const uniqueDays = new Set(filteredAds.map((a: any) => a.date)).size || 1;
 
-  const filteredRevs = (db.revenues || []).filter(
-    (r: any) => (!startDate || r.date >= startDate) && (!endDate || r.date <= endDate)
+  // 2. Revenues
+  const allFilteredRevs = (db.revenues || []).filter(
+    (r: any) => r.date >= effectiveStart && r.date <= effectiveEnd
   );
-  const receivedRevs = filteredRevs.filter(
+  const receivedRevs = allFilteredRevs.filter(
     (r: any) => !r.status || r.status.toLowerCase() === "received"
   );
+  const cancelledRevs = allFilteredRevs.filter(
+    (r: any) => r.status && r.status.toLowerCase().includes("cancelled")
+  );
+
   const totalGrossRevenue = receivedRevs.reduce(
     (sum: number, r: any) => sum + (Number(r.amount) || 0),
     0
@@ -142,9 +166,15 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
     (sum: number, r: any) => sum + (Number(r.product_cost) || 0),
     0
   );
+  const totalCancelledOrders = cancelledRevs.length;
+  const totalCancelledAmount =
+    Math.round(cancelledRevs.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0) * 100) / 100;
+  const totalReceivedOrders = receivedRevs.length;
+  const totalOrders = receivedRevs.length;
 
+  // 3. Other Expenses
   const filteredExpenses = (db.otherExpenses || []).filter(
-    (e: any) => (!startDate || e.date >= startDate) && (!endDate || e.date <= endDate)
+    (e: any) => e.date >= effectiveStart && e.date <= effectiveEnd
   );
   const totalOtherExpenses = filteredExpenses.reduce(
     (sum: number, e: any) => sum + (Number(e.amount) || 0),
@@ -152,14 +182,16 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
   );
 
   const totalDeductions = Math.max(0, Math.round((totalGrossRevenue - totalNetRevenue) * 100) / 100);
+  const totalRefunds = 0;
   const netProfit = Math.round(
     (totalNetRevenue - totalAdSpend - totalOtherExpenses - totalProductCost) * 100
   ) / 100;
   const roas = totalAdSpend > 0 ? Math.round((totalGrossRevenue / totalAdSpend) * 100) / 100 : 0;
-  const uniqueDays = new Set(filteredAds.map((a: any) => a.date)).size || 1;
   const avgDailyAdSpend = Math.round((totalAdSpend / uniqueDays) * 100) / 100;
+  const costPerSale =
+    totalReceivedOrders > 0 ? Math.round((totalAdSpend / totalReceivedOrders) * 100) / 100 : 0;
 
-  // Daily rollup
+  // 4. Daily rollup for charts
   const dailyMap = new Map<string, { adSpend: number; revenue: number; netRevenue: number; profit: number }>();
   for (const a of filteredAds) {
     if (!a.date) continue;
@@ -181,6 +213,26 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
     .map(([date, val]) => ({ date, ...val }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // 5. Monthly comparison
+  const monthlyMap = new Map<string, { adSpend: number; revenue: number; profit: number }>();
+  for (const d of dailySpendAndRevenue) {
+    const month = d.date.substring(0, 7);
+    const curr = monthlyMap.get(month) || { adSpend: 0, revenue: 0, profit: 0 };
+    curr.adSpend += d.adSpend;
+    curr.revenue += d.revenue;
+    curr.profit += d.profit;
+    monthlyMap.set(month, curr);
+  }
+  const monthlyComparison = Array.from(monthlyMap.entries())
+    .map(([month, data]) => ({
+      month,
+      adSpend: Math.round(data.adSpend),
+      revenue: Math.round(data.revenue),
+      profit: Math.round(data.profit),
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  // 6. Recent transactions
   const recentTransactions = [
     ...(db.facebookAds || []).slice(0, 5).map((a: any) => ({
       type: "ad",
@@ -213,17 +265,21 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
       totalNetRevenue,
       totalOtherExpenses,
       totalProductCost,
+      totalRefunds,
+      totalDeductions,
       netProfit,
       totalProducts: (db.products || []).length,
-      totalOrders: receivedRevs.length,
+      totalOrders,
+      totalReceivedOrders,
+      totalCancelledOrders,
+      totalCancelledAmount,
       roas,
       avgDailyAdSpend,
-      costPerSale: receivedRevs.length > 0 ? Math.round((totalAdSpend / receivedRevs.length) * 100) / 100 : 0,
+      costPerSale,
       currencySymbol: "₹",
-      totalDeductions,
     },
     dailySpendAndRevenue,
-    monthlyComparison: [],
+    monthlyComparison,
     productRevenue: (db.products || []).map((p: any) => ({
       name: p.name,
       fullName: p.name,
@@ -331,9 +387,8 @@ export function GitHubPagesClientApi() {
 
           // 4. Dashboard
           if (pathOnly === "/api/dashboard") {
-            const preset = searchParams.get("preset");
-            const startDate = preset === "all_time" ? "2000-01-01" : searchParams.get("startDate") || "2000-01-01";
-            const endDate = preset === "all_time" ? "2099-12-31" : searchParams.get("endDate") || "2099-12-31";
+            const startDate = searchParams.get("startDate") || MIN_DATA_DATE;
+            const endDate = searchParams.get("endDate") || "2099-12-31";
             const dashboard = computeDashboard(db, startDate, endDate);
             return new Response(JSON.stringify(dashboard), {
               status: 200,
