@@ -1,11 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
-  basePath: process.env.NODE_ENV === "production" ? "/facebook" : "",
-  images: {
-    unoptimized: true,
-  },
   transpilePackages: ["lucide-react", "date-fns"],
   reactStrictMode: false,
   experimental: {
