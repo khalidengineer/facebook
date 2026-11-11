@@ -1,0 +1,237 @@
+{
+  "revenues": [
+    {
+      "id": "zcpwrjplrmmy",
+      "date": "2026-11-11",
+      "payment_id": "zcpwrjplrmmy",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "irwindd@gmail.com",
+      "status": "Received",
+      "row_number": 2
+    },
+    {
+      "id": "i3jk5iqkhfwl",
+      "date": "2026-11-11",
+      "payment_id": "i3jk5iqkhfwl",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 187.3,
+      "product_cost": 0,
+      "customer_email": "dkhireswar@gmail.com",
+      "status": "Received",
+      "row_number": 3
+    },
+    {
+      "id": "9fwuny5xsgfo",
+      "date": "2026-11-11",
+      "payment_id": "9fwuny5xsgfo",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "sonal.gec2010@gmail.com",
+      "status": "Received",
+      "row_number": 4
+    },
+    {
+      "id": "bqfo5sdfz41o",
+      "date": "2026-11-11",
+      "payment_id": "bqfo5sdfz41o",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "selvamsb123@gmail.com",
+      "status": "Received",
+      "row_number": 5
+    },
+    {
+      "id": "ewm0mmgwaj79",
+      "date": "2026-11-11",
+      "payment_id": "ewm0mmgwaj79",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "sidzafar11@gmail.com",
+      "status": "Received",
+      "row_number": 6
+    },
+    {
+      "id": "yfml4b4vel32",
+      "date": "2026-11-11",
+      "payment_id": "yfml4b4vel32",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 187.3,
+      "product_cost": 0,
+      "customer_email": "active.dev21@gmail.com",
+      "status": "Received",
+      "row_number": 7
+    },
+    {
+      "id": "8eor2lmwv1dz",
+      "date": "2026-11-10",
+      "payment_id": "8eor2lmwv1dz",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "srinivasa.anand51@gmail.com",
+      "status": "Received",
+      "row_number": 8
+    },
+    {
+      "id": "2vzdf7oa4kwi",
+      "date": "2026-11-11",
+      "payment_id": "2vzdf7oa4kwi",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 280.4,
+      "product_cost": 0,
+      "customer_email": "praveenbit.2015@yahoo.in",
+      "status": "Received",
+      "row_number": 63
+    },
+    {
+      "id": "r1kyjedp383x",
+      "date": "2026-11-11",
+      "payment_id": "r1kyjedp383x",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 187.3,
+      "product_cost": 0,
+      "customer_email": "rubina.79s@gmail.com",
+      "status": "Received",
+      "row_number": 64
+    },
+    {
+      "id": "b2h2l4fk2dxc",
+      "date": "2026-11-11",
+      "payment_id": "b2h2l4fk2dxc",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 187.3,
+      "product_cost": 0,
+      "customer_email": "sunilbonde30@gmail.com",
+      "status": "Received",
+      "row_number": 65
+    },
+    {
+      "id": "62754fln11u7",
+      "date": "2026-11-11",
+      "payment_id": "62754fln11u7",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 0,
+      "product_cost": 0,
+      "customer_email": "alokkumaradpr@gmail.com",
+      "status": "Cancelled by customer",
+      "row_number": 66
+    },
+    {
+      "id": "4loq3coy4n58",
+      "date": "2026-11-11",
+      "payment_id": "4loq3coy4n58",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 0,
+      "product_cost": 0,
+      "customer_email": "active.dev21@gmail.com",
+      "status": "Cancelled by customer",
+      "row_number": 67
+    },
+    {
+      "id": "s82qt87a7w1s",
+      "date": "2026-11-10",
+      "payment_id": "s82qt87a7w1s",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 298,
+      "net_amount": 0,
+      "product_cost": 0,
+      "customer_email": "ksantigierobert@gmail.com",
+      "status": "Cancelled by customer",
+      "row_number": 68
+    },
+    {
+      "id": "2nxuj2kgrc8g",
+      "date": "2026-11-10",
+      "payment_id": "2nxuj2kgrc8g",
+      "product_name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "amount": 199,
+      "net_amount": 0,
+      "product_cost": 0,
+      "customer_email": "ksantigierobert@gmail.com",
+      "status": "Cancelled by customer",
+      "row_number": 69
+    }
+  ],
+  "facebookAds": [
+    {
+      "id": "2",
+      "date": "2026-11-11",
+      "campaign_name": "Sql",
+      "product_name": "",
+      "campaign_type": "Sales",
+      "amount": 1630,
+      "currency": "INR",
+      "notes": "₹163 transferred to 2026-11-10",
+      "row_number": 2
+    }
+  ],
+  "otherExpenses": [],
+  "products": [
+    {
+      "id": "2",
+      "name": "SQL Handwritten Notes – Learn SQL from Basics to Advanced",
+      "category": "Digital Notes",
+      "selling_price": 398,
+      "product_cost": 0,
+      "row_number": 2
+    },
+    {
+      "id": "3",
+      "name": "PYTHON MASTER NOTES — 2026 EDITION",
+      "category": "Digital Notes",
+      "selling_price": 199,
+      "product_cost": 0,
+      "row_number": 3
+    },
+    {
+      "id": "4",
+      "name": "Master SQL from Zero — Learn to Write Real SQL Queries with Confidence",
+      "category": "Digital Notes",
+      "selling_price": 199,
+      "product_cost": 0,
+      "row_number": 4
+    },
+    {
+      "id": "5",
+      "name": "NEET Biology 2026 – Premium Smart Notes",
+      "category": "Digital Notes",
+      "selling_price": 99,
+      "product_cost": 0,
+      "row_number": 5
+    },
+    {
+      "id": "6",
+      "name": "Class 12th Biology + Physics + Chemistry Notes 2025-2026 ( Exam Ready Notes",
+      "category": "Digital Notes",
+      "selling_price": 149,
+      "product_cost": 0,
+      "row_number": 6
+    },
+    {
+      "id": "7",
+      "name": "NEET 2025 Special Exam Oriented Notes NCERT Short Notes",
+      "category": "Digital Notes",
+      "selling_price": 283,
+      "product_cost": 0,
+      "row_number": 7
+    }
+  ],
+  "lastFetchedAt": 1794401720559
+}
