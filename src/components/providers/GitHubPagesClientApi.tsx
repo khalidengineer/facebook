@@ -7,7 +7,6 @@ const DEFAULT_WEBHOOK =
 const DEFAULT_SHEET_ID = "1LfzTmzaUpybViSZ2g-lKgr7v4NbMoNogIOz_IYtReVA";
 const DEFAULT_SHEET_URL = `https://docs.google.com/spreadsheets/d/${DEFAULT_SHEET_ID}/edit?usp=sharing`;
 
-// Cache in sessionStorage / memory
 let sheetCache: {
   revenues: any[];
   facebookAds: any[];
@@ -15,6 +14,67 @@ let sheetCache: {
   products: any[];
   lastFetchedAt: number;
 } | null = null;
+
+function parseAppsScriptData(json: any) {
+  const revenues = (json.revenues || []).map((r: any, idx: number) => {
+    const grossAmt = parseFloat(r["Paid By Customer"] || r.amount || 0) || 0;
+    const rawNet = parseFloat(r["Earned Amount"] || r.net_amount || 0);
+    const statusStr = String(r["Status"] || r.status || "Received");
+    const isCancelled = statusStr.toLowerCase().includes("cancelled");
+    const netAmt = isCancelled ? 0 : !isNaN(rawNet) && rawNet > 0 ? rawNet : grossAmt;
+    const rawDate = r["Date"] || r.date || "";
+    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+    return {
+      id: String(r["Payment ID"] || r.payment_id || `REV-${idx + 1}`),
+      date: cleanDate,
+      payment_id: String(r["Payment ID"] || r.payment_id || ""),
+      product_name: String(r["Product Title"] || r.product_title || r.product_name || ""),
+      amount: grossAmt,
+      net_amount: netAmt,
+      product_cost: parseFloat(r["Product Cost"] || r.product_cost || 0) || 0,
+      customer_email: String(r["Customer Email"] || r.customer_email || ""),
+      status: statusStr,
+    };
+  });
+
+  const facebookAds = (json.facebookAds || []).map((a: any, idx: number) => {
+    const rawDate = a["Date"] || a.date || "";
+    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+    return {
+      id: String(a.id || `AD-${idx + 1}`),
+      date: cleanDate,
+      campaign_name: String(a["Campaign Name"] || a.campaign_name || ""),
+      product_name: String(a["Product"] || a.product || a.product_name || ""),
+      campaign_type: String(a["Campaign Type"] || a.campaign_type || "Sales"),
+      amount: parseFloat(a["Amount Spent"] || a.amount_spent || a.amount || 0) || 0,
+      currency: "INR",
+      notes: String(a["Notes"] || a.notes || ""),
+    };
+  });
+
+  const otherExpenses = (json.otherExpenses || []).map((e: any, idx: number) => {
+    const rawDate = e["Date"] || e.date || "";
+    const cleanDate = typeof rawDate === "string" ? rawDate.split("T")[0] : "";
+    return {
+      id: String(e.id || `EXP-${idx + 1}`),
+      date: cleanDate,
+      category: String(e["Category"] || e.category || "General"),
+      description: String(e["Description"] || e.description || ""),
+      amount: parseFloat(e["Amount"] || e.amount || 0) || 0,
+      notes: String(e["Notes"] || e.notes || ""),
+    };
+  });
+
+  const products = (json.products || []).map((p: any, idx: number) => ({
+    id: String(p.id || `PROD-${idx + 1}`),
+    name: String(p["Product Name"] || p.name || ""),
+    category: String(p["Category"] || p.category || "Digital Product"),
+    selling_price: parseFloat(p["Selling Price"] || p.selling_price || 0) || 0,
+    product_cost: parseFloat(p["Product Cost"] || p.product_cost || 0) || 0,
+  }));
+
+  return { revenues, facebookAds, otherExpenses, products };
+}
 
 async function getLiveSheetData(webhookUrl: string, force = false) {
   const now = Date.now();
@@ -28,16 +88,16 @@ async function getLiveSheetData(webhookUrl: string, force = false) {
     if (res.ok) {
       const json = await res.json();
       if (json.success) {
-        // Also merge local additions if any
+        const parsed = parseAppsScriptData(json);
         const localAds = JSON.parse(localStorage.getItem("gh_local_ads") || "[]");
         const localExpenses = JSON.parse(localStorage.getItem("gh_local_expenses") || "[]");
         const localRevs = JSON.parse(localStorage.getItem("gh_local_revs") || "[]");
 
         sheetCache = {
-          revenues: [...(json.revenues || []), ...localRevs],
-          facebookAds: [...(json.facebookAds || []), ...localAds],
-          otherExpenses: [...(json.otherExpenses || []), ...localExpenses],
-          products: json.products || [],
+          revenues: [...parsed.revenues, ...localRevs],
+          facebookAds: [...parsed.facebookAds, ...localAds],
+          otherExpenses: [...parsed.otherExpenses, ...localExpenses],
+          products: parsed.products,
           lastFetchedAt: now,
         };
         return sheetCache;
@@ -60,12 +120,12 @@ async function getLiveSheetData(webhookUrl: string, force = false) {
 
 function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-31") {
   const filteredAds = (db.facebookAds || []).filter(
-    (a: any) => a.date >= startDate && a.date <= endDate
+    (a: any) => (!startDate || a.date >= startDate) && (!endDate || a.date <= endDate)
   );
   const totalAdSpend = filteredAds.reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
 
   const filteredRevs = (db.revenues || []).filter(
-    (r: any) => r.date >= startDate && r.date <= endDate
+    (r: any) => (!startDate || r.date >= startDate) && (!endDate || r.date <= endDate)
   );
   const receivedRevs = filteredRevs.filter(
     (r: any) => !r.status || r.status.toLowerCase() === "received"
@@ -84,7 +144,7 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
   );
 
   const filteredExpenses = (db.otherExpenses || []).filter(
-    (e: any) => e.date >= startDate && e.date <= endDate
+    (e: any) => (!startDate || e.date >= startDate) && (!endDate || e.date <= endDate)
   );
   const totalOtherExpenses = filteredExpenses.reduce(
     (sum: number, e: any) => sum + (Number(e.amount) || 0),
@@ -102,12 +162,14 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
   // Daily rollup
   const dailyMap = new Map<string, { adSpend: number; revenue: number; netRevenue: number; profit: number }>();
   for (const a of filteredAds) {
+    if (!a.date) continue;
     const cur = dailyMap.get(a.date) || { adSpend: 0, revenue: 0, netRevenue: 0, profit: 0 };
     cur.adSpend += Number(a.amount) || 0;
     cur.profit -= Number(a.amount) || 0;
     dailyMap.set(a.date, cur);
   }
   for (const r of receivedRevs) {
+    if (!r.date) continue;
     const cur = dailyMap.get(r.date) || { adSpend: 0, revenue: 0, netRevenue: 0, profit: 0 };
     cur.revenue += Number(r.amount) || 0;
     cur.netRevenue += Number(r.net_amount) || Number(r.amount) || 0;
@@ -180,7 +242,6 @@ function computeDashboard(db: any, startDate = "2000-01-01", endDate = "2099-12-
 
 export function GitHubPagesClientApi() {
   useEffect(() => {
-    // Only intercept in browser on GitHub Pages or static host where /api doesn't exist
     const isGitHubPages =
       typeof window !== "undefined" &&
       (window.location.hostname.includes("github.io") || window.location.port === "5000");
@@ -192,7 +253,6 @@ export function GitHubPagesClientApi() {
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      // Check if it's an API route call
       if (urlStr.includes("/api/")) {
         try {
           const method = (init?.method || "GET").toUpperCase();
@@ -250,7 +310,19 @@ export function GitHubPagesClientApi() {
           if (pathOnly === "/api/sheets/sync" || pathOnly === "/api/sheets/push-all") {
             const data = await getLiveSheetData(storedConfig.webhookUrl, true);
             return new Response(
-              JSON.stringify({ success: true, message: "Synced with Google Sheets!", ...data }),
+              JSON.stringify({
+                success: true,
+                message: "Synced with Google Sheets!",
+                sheetId: storedConfig.sheetId,
+                sheetUrl: storedConfig.sheetUrl,
+                tabs: {
+                  revenues: { rows: (data.revenues || []).length, inserted: 0, updated: (data.revenues || []).length, skipped: 0 },
+                  facebookAds: { rows: (data.facebookAds || []).length, imported: (data.facebookAds || []).length, skipped: 0 },
+                  otherExpenses: { rows: (data.otherExpenses || []).length, imported: (data.otherExpenses || []).length, skipped: 0 },
+                  products: { rows: (data.products || []).length, upserted: (data.products || []).length },
+                },
+                ...data,
+              }),
               { status: 200, headers: { "Content-Type": "application/json" } }
             );
           }
@@ -259,8 +331,9 @@ export function GitHubPagesClientApi() {
 
           // 4. Dashboard
           if (pathOnly === "/api/dashboard") {
-            const startDate = searchParams.get("startDate") || "2000-01-01";
-            const endDate = searchParams.get("endDate") || "2099-12-31";
+            const preset = searchParams.get("preset");
+            const startDate = preset === "all_time" ? "2000-01-01" : searchParams.get("startDate") || "2000-01-01";
+            const endDate = preset === "all_time" ? "2099-12-31" : searchParams.get("endDate") || "2099-12-31";
             const dashboard = computeDashboard(db, startDate, endDate);
             return new Response(JSON.stringify(dashboard), {
               status: 200,
@@ -277,7 +350,6 @@ export function GitHubPagesClientApi() {
               localAds.push(newAd);
               localStorage.setItem("gh_local_ads", JSON.stringify(localAds));
 
-              // Try async forward to Google Sheet Webhook
               originalFetch(storedConfig.webhookUrl, {
                 method: "POST",
                 body: JSON.stringify({ action: "add_ad", ...body }),
@@ -351,7 +423,7 @@ export function GitHubPagesClientApi() {
           }
 
           // 10. Settings
-          if (pathOnly.startsWith("/api/settings")) {
+          if (pathOnly === "/api/settings") {
             return new Response(
               JSON.stringify({
                 success: true,

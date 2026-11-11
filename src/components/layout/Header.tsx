@@ -74,14 +74,19 @@ export function Header({ title = "Dashboard", onOpenQuickAdd }: HeaderProps) {
     try {
       const res = await fetch("/api/sheets/sync");
       const data = await res.json();
-      if (data.success) {
+      if (data && data.success) {
+        const salesCount =
+          (data.tabs?.revenues?.inserted || 0) +
+          (data.tabs?.revenues?.updated || data.tabs?.revenues?.rows || 0);
+        const adsCount = data.tabs?.facebookAds?.imported || data.tabs?.facebookAds?.rows || 0;
+        const prodCount = data.tabs?.products?.upserted || data.tabs?.products?.rows || 0;
         success(
           "Google Sheet Synced!",
-          `Sales: ${data.tabs.revenues.inserted + data.tabs.revenues.updated}, Ads: ${data.tabs.facebookAds.imported}, Products: ${data.tabs.products.upserted}`
+          `Sales: ${salesCount}, Ads: ${adsCount}, Products: ${prodCount}`
         );
         router.refresh();
       } else {
-        error(data.error || "Google Sheet sync failed");
+        error(data?.error || "Google Sheet sync failed");
       }
     } catch {
       error("Failed to connect to Google Sheet");
