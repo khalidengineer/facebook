@@ -30,7 +30,7 @@ function parseAppsScriptData(json: any) {
         id: String(r["Payment ID"] || r.payment_id || `REV-${idx + 1}`),
         date: cleanDate,
         payment_id: String(r["Payment ID"] || r.payment_id || ""),
-        product_name: String(r["Product Title"] || r.product_name || ""),
+        product_name: String(r["Product Title"] || r.product_title || r.product_name || ""),
         amount: grossAmt,
         net_amount: netAmt,
         product_cost: parseFloat(r["Product Cost"] || r.product_cost || 0) || 0,
@@ -48,7 +48,7 @@ function parseAppsScriptData(json: any) {
         id: String(a.id || `AD-${idx + 1}`),
         date: cleanDate,
         campaign_name: String(a["Campaign Name"] || a.campaign_name || ""),
-        product_name: String(a["Product"] || a.product_name || ""),
+        product_name: String(a["Product"] || a.product || a.product_name || ""),
         campaign_type: String(a["Campaign Type"] || a.campaign_type || "Sales"),
         amount: parseFloat(a["Amount Spent"] || a.amount_spent || a.amount || 0) || 0,
         currency: "INR",
@@ -132,7 +132,6 @@ async function getLiveSheetData(webhookUrl: string, force = false) {
 }
 
 function computeDashboard(db: any, startDate = MIN_DATA_DATE, endDate = "2099-12-31") {
-  // Enforce baseline minimum date 2026-11-10
   const effectiveStart = !startDate || startDate < MIN_DATA_DATE ? MIN_DATA_DATE : startDate;
   const effectiveEnd = !endDate ? "2099-12-31" : endDate;
 
@@ -210,7 +209,13 @@ function computeDashboard(db: any, startDate = MIN_DATA_DATE, endDate = "2099-12
   }
 
   const dailySpendAndRevenue = Array.from(dailyMap.entries())
-    .map(([date, val]) => ({ date, ...val }))
+    .map(([date, val]) => ({
+      date,
+      adSpend: Math.round(val.adSpend * 100) / 100,
+      revenue: Math.round(val.revenue * 100) / 100,
+      netRevenue: Math.round(val.netRevenue * 100) / 100,
+      profit: Math.round(val.profit * 100) / 100,
+    }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // 5. Monthly comparison
@@ -232,29 +237,59 @@ function computeDashboard(db: any, startDate = MIN_DATA_DATE, endDate = "2099-12
     }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
-  // 6. Recent transactions
-  const recentTransactions = [
-    ...(db.facebookAds || []).slice(0, 5).map((a: any) => ({
-      type: "ad",
-      id: a.id,
-      date: a.date,
-      title: a.campaign_name,
-      product_name: a.product_name,
-      amount: a.amount,
-      notes: a.notes,
-    })),
-    ...(db.revenues || []).slice(0, 8).map((r: any) => ({
-      type: "revenue",
-      id: r.id,
-      date: r.date,
-      title: r.product_name,
-      product_name: r.product_name,
-      amount: r.amount,
-      status: r.status || "Received",
-      notes: `Payment ID: ${r.payment_id}`,
-    })),
-  ]
-    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+  // 6. Product Revenue Breakdown for chart
+  const productRevenue = (db.products || [])
+    .map((p: any) => {
+      const prodRevs = receivedRevs.filter(
+        (r: any) => r.product_name && r.product_name.toLowerCase() === p.name.toLowerCase()
+      );
+      const prodAds = filteredAds.filter(
+        (a: any) => a.product_name && a.product_name.toLowerCase() === p.name.toLowerCase()
+      );
+      const rev = prodRevs.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+      const netRev = prodRevs.reduce(
+        (sum: number, r: any) => sum + (Number(r.net_amount) || Number(r.amount) || 0),
+        0
+      );
+      const ad = prodAds.reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+      return {
+        name: p.name.length > 25 ? p.name.substring(0, 22) + "..." : p.name,
+        fullName: p.name,
+        revenue: Math.round(rev),
+        adSpend: Math.round(ad),
+        netProfit: Math.round(netRev - ad),
+        roas: ad > 0 ? Math.round((rev / ad) * 100) / 100 : 0,
+      };
+    })
+    .filter((p: any) => p.revenue > 0 || p.adSpend > 0);
+
+  // 7. Orders for the customer sales ledger at the bottom
+  const orders = allFilteredRevs
+    .slice()
+    .sort((a: any, b: any) => (b.date || "").localeCompare(a.date || ""));
+
+  // 8. Recent transactions
+  const recentAds = (db.facebookAds || []).slice(0, 5).map((a: any) => ({
+    type: "ad",
+    id: a.id,
+    date: a.date,
+    title: a.campaign_name,
+    product_name: a.product_name,
+    amount: a.amount,
+    notes: a.notes,
+  }));
+  const recentRevs = (db.revenues || []).slice(0, 8).map((r: any) => ({
+    type: "revenue",
+    id: r.id,
+    date: r.date,
+    title: r.product_name,
+    product_name: r.product_name,
+    amount: r.amount,
+    status: r.status || "Received",
+    notes: `Payment ID: ${r.payment_id}`,
+  }));
+  const recentTransactions = [...recentAds, ...recentRevs]
+    .sort((a: any, b: any) => (b.date || "").localeCompare(a.date || ""))
     .slice(0, 10);
 
   return {
@@ -278,20 +313,12 @@ function computeDashboard(db: any, startDate = MIN_DATA_DATE, endDate = "2099-12
       costPerSale,
       currencySymbol: "₹",
     },
-    dailySpendAndRevenue,
-    monthlyComparison,
-    productRevenue: (db.products || []).map((p: any) => ({
-      name: p.name,
-      fullName: p.name,
-      revenue: (receivedRevs || [])
-        .filter((r: any) => r.product_name === p.name)
-        .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0),
-      adSpend: (filteredAds || [])
-        .filter((a: any) => a.product_name === p.name)
-        .reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0),
-      netProfit: 0,
-      roas: 0,
-    })),
+    charts: {
+      dailySpendAndRevenue,
+      monthlyComparison,
+      productRevenue,
+    },
+    orders,
     recentTransactions,
   };
 }
