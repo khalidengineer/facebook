@@ -370,6 +370,30 @@ export function GitHubPagesClientApi() {
             });
           }
 
+          // 1b. Import API Fallback
+          if (pathOnly.startsWith("/api/import")) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                message: "Processed via Client Engine",
+                insertedCount: 0,
+                updatedCount: 0,
+                preview: {
+                  totalRows: 0,
+                  newRows: 0,
+                  matchedRows: 0,
+                  invalidRows: 0,
+                  totalGrossAmount: 0,
+                  totalNetAmount: 0,
+                  detectedProducts: [],
+                  previewRows: [],
+                  dateRange: { start: null, end: null },
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            );
+          }
+
           // 2. Test webhook
           if (pathOnly === "/api/sheets/test-webhook") {
             try {

@@ -16,7 +16,7 @@ try {
   }
 
   console.log("Running next build with static export...");
-  execSync("npx next build", {
+  execSync("node --max-old-space-size=4096 node_modules/next/dist/bin/next build", {
     stdio: "inherit",
     env: { ...process.env, NEXT_EXPORT: "true" },
   });
