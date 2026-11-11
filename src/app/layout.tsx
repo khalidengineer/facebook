@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { DateFilterProvider } from "@/components/providers/DateFilterProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
 import { GitHubPagesClientApi } from "@/components/providers/GitHubPagesClientApi";
+import { PwaRegistrar } from "@/components/providers/PwaRegistrar";
 import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
@@ -34,13 +35,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="icon-192.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#2563eb" />
       </head>
       <body className="antialiased selection:bg-primary/20 selection:text-primary">
         <ThemeProvider>
           <DateFilterProvider>
             <ToastProvider>
               <GitHubPagesClientApi />
+              <PwaRegistrar />
               <AppShell>{children}</AppShell>
             </ToastProvider>
           </DateFilterProvider>

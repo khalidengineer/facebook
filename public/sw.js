@@ -1,15 +1,10 @@
-const CACHE_NAME = "adspend-pro-v1";
-const ASSETS_TO_CACHE = [
-  "/",
-  "/manifest.json",
-  "/icon-192.png",
-  "/icon-512.png",
-];
+const CACHE_NAME = "adspend-pro-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Best-effort cache of base resources
+      return cache.addAll(["./", "manifest.json", "icon-192.png", "icon-512.png"]).catch(() => {});
     })
   );
   self.skipWaiting();
@@ -31,7 +26,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests and skip API routes to avoid caching database mutations
+  // Never intercept API calls, only static assets
   if (event.request.method !== "GET" || event.request.url.includes("/api/")) {
     return;
   }
@@ -39,7 +34,6 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone response into cache
         if (response && response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -49,11 +43,7 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        // Offline fallback to cache
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          return caches.match("/");
-        });
+        return caches.match(event.request);
       })
   );
 });
